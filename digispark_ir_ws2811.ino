@@ -1,3 +1,9 @@
+//MUST USE ARDUINO 1.6.5 IDE or DIGISPARK PACKAGES WONT WORK WITH LIBRARIES
+
+//EEPROM SAVE IS CURRENTLY DISABLED
+
+//Standard Settings for 2016 are hardcoded!
+
 //Adafruit's library saves ~1.5K+ of program space versus FastLED 3.1, which on a Attiny85 (digispark) is needed.
 //Bringing Adafruit's assembly into this program and stripping out more extra stuff saves another 1K (awesome!)
 
@@ -58,12 +64,12 @@ uint16_t IRAddress_previous = 0;
 uint32_t IRCommand_previous = 0;
 
 //stuff to save to NVRAM
-uint16_t effect_speed = 1000;
+uint16_t effect_speed = 500;
 uint8_t effect_mode = 1;
 int16_t width_lit_up = 2;
 
 uint8_t blend_factor = 255;  //1 is max smoothing  255 is no smoothing
-int8_t blend_mode = 7;
+int8_t blend_mode = 8;
 
 uint32_t strip_refresh = 0;
 uint32_t effect_time = 0;
@@ -105,7 +111,9 @@ uint8_t starting_index_speed = 0;
 uint8_t pixels[NUM_LEDS * 3];
 bool pinout = 1;
 bool disable_fading_on_edge;
+
 void setup() {
+
   //IR Setup
   attachPCINT(2, IRLinterrupt<IR_NEC>, CHANGE);
 
@@ -114,17 +122,15 @@ void setup() {
   pinMask = digitalPinToBitMask(DATA_PIN);
   pinMode(DATA_PIN, OUTPUT);
   digitalWrite(DATA_PIN, LOW);
-  //Serial.begin(115200);
   color1.r = 0;
-  color1.g = 0;
-  color1.b = 125;
-  effect_speed = 500;
-  effect_mode = 1;
-  width_lit_up = 2;
+  color1.g = 255;
+  color1.b = 0;
+  effect_speed = 20;
+  effect_mode = 4;
+  width_lit_up = 8;
   color2.r = 0;
-  color2.g = 125;
+  color2.g = 255;
   color2.b = 0;
-  pinMode(1, OUTPUT); //LED
 }
 
 void loop() {
@@ -156,7 +162,7 @@ void loop() {
         case G5_BUTTON: temp.r = 0;  temp.g = 71;  temp.b = 185;  break;
         case B1_BUTTON: temp.r = 0;   temp.g = 0;   temp.b = 255; break;
         case B2_BUTTON: temp.r = 50;  temp.g = 0;   temp.b = 205;   break;
-        case B3_BUTTON: temp.r = 100;  temp.g =0;   temp.b = 156;   break;
+        case B3_BUTTON: temp.r = 100;  temp.g = 0;   temp.b = 156;   break;
         case B4_BUTTON: temp.r = 151; temp.g = 0;  temp.b = 105;  break;
         case B5_BUTTON: temp.r = 202; temp.g = 0;   temp.b = 54;   break;
         case W_BUTTON:  temp.r = 128; temp.g = 128;   temp.b = 128;   break;
@@ -181,19 +187,22 @@ void loop() {
             case ADJUST_EFFECT_SMOOTH: if (blend_mode > -8) blend_mode--;  break;
           }
           break;
-        case OFF_BUTTON: {//OFF
-            EEPROM.write(0, color1.r);
-            EEPROM.write(1, color1.g);
-            EEPROM.write(2, color1.b);
-            EEPROM.write(3, (effect_speed >> 8) & 0xFF);
-            EEPROM.write(4, (effect_speed) & 0xFF);
-            EEPROM.write(5, effect_mode);
-            EEPROM.write(6, width_lit_up);
-            EEPROM.write(7, color2.r);
-            EEPROM.write(8, color2.g);
-            EEPROM.write(9, color2.b);
-          } break;
-        case ON_BUTTON:  break; //ON
+          //reset for on or off button
+        case OFF_BUTTON:
+        case ON_BUTTON: {
+          
+            color1.r = 0;
+            color1.g = 255;
+            color1.b = 0;
+            effect_speed = 20;
+            effect_mode = 4;
+            width_lit_up = 8;
+            color2.r = 0;
+            color2.g = 255;
+            color2.b = 0;
+            
+            break;
+          }
       }
 
       //if a color was set, load it.  alternate between setting color 1 and 2.
@@ -217,7 +226,7 @@ void loop() {
     disable_fading_on_edge = false;
     blend_factor = ( blend_mode) + 1;
   }
-  blend_factor =min( 2 ^ ((int)blend_factor),255);
+  blend_factor = min( 2 ^ ((int)blend_factor), 255);
 
   //set mode variables
   switch (effect_mode) {

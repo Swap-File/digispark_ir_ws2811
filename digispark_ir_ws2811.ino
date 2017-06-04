@@ -1,4 +1,4 @@
-//MUST USE ARDUINO 1.6.5 IDE or DIGISPARK PACKAGES WONT WORK WITH LIBRARIES
+//COMPILED 5/23/2017 on IDE 1.8.2 with IRLremote 1.7.4
 
 //EEPROM SAVE IS CURRENTLY DISABLED
 
@@ -12,6 +12,10 @@
 #include <EEPROM.h>
 #include "IRLremote.h"
 #include "PinChangeInterrupt.h" //must use this because its fast enough to fit it's interrupt between pixels
+
+//battery warning time in milliseconds (10 hours * 60 minutes * 60 seconds * 1000 milliseconds)
+//correction factor of X percent to compensate for millis not counting time while updating LEDs.
+#define  BATTERY_TIME 36000000
 
 //Pins
 #define IR_PIN 2
@@ -111,6 +115,7 @@ uint8_t starting_index_speed = 0;
 uint8_t pixels[NUM_LEDS * 3];
 bool pinout = 1;
 bool disable_fading_on_edge;
+uint8_t supressed =0;
 
 void setup() {
 
@@ -151,21 +156,21 @@ void loop() {
       CRGB temp;
       switch (IRCommand) {
         case R1_BUTTON: temp.r = 255; temp.g = 0;   temp.b = 0;   break;
-        case R2_BUTTON: temp.r = 205; temp.g = 50;  temp.b = 0;  break;
-        case R3_BUTTON: temp.r = 171; temp.g = 100;  temp.b = 0;  break;
-        case R4_BUTTON: temp.r = 171; temp.g = 151;  temp.b = 25;  break;
-        case R5_BUTTON: temp.r = 105; temp.g = 202;  temp.b = 23;  break;
+        case R2_BUTTON: temp.r = 205; temp.g = 50;  temp.b = 0;   break;
+        case R3_BUTTON: temp.r = 171; temp.g = 100; temp.b = 0;   break;
+        case R4_BUTTON: temp.r = 171; temp.g = 151; temp.b = 25;  break;
+        case R5_BUTTON: temp.r = 105; temp.g = 202; temp.b = 23;  break;
         case G1_BUTTON: temp.r = 0;   temp.g = 255; temp.b = 0;   break;
-        case G2_BUTTON: temp.r = 0;  temp.g = 221;  temp.b = 34;  break;
-        case G3_BUTTON: temp.r = 0;  temp.g = 186;  temp.b = 69;  break;
-        case G4_BUTTON: temp.r = 0;  temp.g = 140;  temp.b = 116;  break;
-        case G5_BUTTON: temp.r = 0;  temp.g = 71;  temp.b = 185;  break;
+        case G2_BUTTON: temp.r = 0;   temp.g = 221; temp.b = 34;  break;
+        case G3_BUTTON: temp.r = 0;   temp.g = 186; temp.b = 69;  break;
+        case G4_BUTTON: temp.r = 0;   temp.g = 140; temp.b = 116; break;
+        case G5_BUTTON: temp.r = 0;   temp.g = 71;  temp.b = 185; break;
         case B1_BUTTON: temp.r = 0;   temp.g = 0;   temp.b = 255; break;
-        case B2_BUTTON: temp.r = 50;  temp.g = 0;   temp.b = 205;   break;
-        case B3_BUTTON: temp.r = 100;  temp.g = 0;   temp.b = 156;   break;
-        case B4_BUTTON: temp.r = 151; temp.g = 0;  temp.b = 105;  break;
-        case B5_BUTTON: temp.r = 202; temp.g = 0;   temp.b = 54;   break;
-        case W_BUTTON:  temp.r = 128; temp.g = 128;   temp.b = 128;   break;
+        case B2_BUTTON: temp.r = 50;  temp.g = 0;   temp.b = 205; break;
+        case B3_BUTTON: temp.r = 100; temp.g = 0;   temp.b = 156; break;
+        case B4_BUTTON: temp.r = 151; temp.g = 0;   temp.b = 105; break;
+        case B5_BUTTON: temp.r = 202; temp.g = 0;   temp.b = 54;  break;
+        case W_BUTTON:  temp.r = 128; temp.g = 128; temp.b = 128; break;
         case FLASH_BUTTON:  adjust_mode = ADJUST_EFFECT_SPEED;  break;
         case STROBE_BUTTON: adjust_mode = ADJUST_FILL_MODE;     break;
         case FADE_BUTTON:   adjust_mode = ADJUST_EFFECT_MODE;   break;
@@ -173,24 +178,23 @@ void loop() {
 
         case UP_BUTTON:
           switch (adjust_mode) {
-            case ADJUST_FILL_MODE:     if (width_lit_up < (NUM_LEDS - 1)) width_lit_up++; break;
-            case ADJUST_EFFECT_SPEED:  if (effect_speed > 10) effect_speed = effect_speed >> 1;          break;
-            case ADJUST_EFFECT_MODE:   if (++effect_mode > 6) effect_mode = 6;            break;
-            case ADJUST_EFFECT_SMOOTH:   if (blend_mode < 8) blend_mode++;    break;
+            case ADJUST_FILL_MODE:     if (width_lit_up < (NUM_LEDS - 1)) width_lit_up++;       break;
+            case ADJUST_EFFECT_SPEED:  if (effect_speed > 10) effect_speed = effect_speed >> 1; break;
+            case ADJUST_EFFECT_MODE:   if (++effect_mode > 6) effect_mode = 6;                  break;
+            case ADJUST_EFFECT_SMOOTH: if (blend_mode < 8) blend_mode++;                        break;
           }
           break;
         case DOWN_BUTTON:
           switch (adjust_mode) {
-            case ADJUST_FILL_MODE:     if (width_lit_up > 0) width_lit_up--;                   break;
-            case ADJUST_EFFECT_SPEED:  if (effect_speed < 2000)  effect_speed = effect_speed << 1;               break;
-            case ADJUST_EFFECT_MODE:   if (effect_mode > 0) effect_mode--;                     break;
-            case ADJUST_EFFECT_SMOOTH: if (blend_mode > -8) blend_mode--;  break;
+            case ADJUST_FILL_MODE:     if (width_lit_up > 0) width_lit_up--;                       break;
+            case ADJUST_EFFECT_SPEED:  if (effect_speed < 2000)  effect_speed = effect_speed << 1; break;
+            case ADJUST_EFFECT_MODE:   if (effect_mode > 0) effect_mode--;                         break;
+            case ADJUST_EFFECT_SMOOTH: if (blend_mode > -8) blend_mode--;                          break;
           }
           break;
-          //reset for on or off button
+        //reset for on or off button
         case OFF_BUTTON:
         case ON_BUTTON: {
-          
             color1.r = 0;
             color1.g = 255;
             color1.b = 0;
@@ -200,7 +204,6 @@ void loop() {
             color2.r = 0;
             color2.g = 255;
             color2.b = 0;
-            
             break;
           }
       }
@@ -233,21 +236,19 @@ void loop() {
     case 1: //cylon mode w/ visible bounce
       bounce = BOUNCE_VISIBLE; wrap_rendering = false; break;
     case 2: //forwards w/ hidden wrap
-      bounce = BOUNCE_NONE; wrap_rendering = false; forward_direction = true; break;
+      bounce = BOUNCE_NONE;    wrap_rendering = false; forward_direction = true; break;
     case 3: //backwards w/ hidden wrap
-      bounce = BOUNCE_NONE; wrap_rendering = false; forward_direction = false; break;
+      bounce = BOUNCE_NONE;    wrap_rendering = false; forward_direction = false; break;
     case 4: //cylon mode w/ hidden bounce
-      bounce = BOUNCE_HIDDEN; wrap_rendering = false; break;
+      bounce = BOUNCE_HIDDEN;  wrap_rendering = false; break;
     case 5: //forwards w/ wrap
-      bounce = BOUNCE_NONE; wrap_rendering = true; forward_direction = true; break;
+      bounce = BOUNCE_NONE;    wrap_rendering = true; forward_direction = true; break;
     case 6: //backwards w/ wrap
-      bounce = BOUNCE_NONE; wrap_rendering = true; forward_direction = false; break;
+      bounce = BOUNCE_NONE;    wrap_rendering = true; forward_direction = false; break;
   }
 
 
   if (millis() > strip_refresh) { //lock strip refresh & effect speed to 100hz
-
-
     //render the strip
     for (int16_t processed = 0; processed <= NUM_LEDS; processed++) {
       CRGB erased;
@@ -269,6 +270,11 @@ void loop() {
       blend_one(location + 2, temp->b, i);
     }
 
+    //blank and blink if the strip has been running too long
+    if (millis() > BATTERY_TIME && (supressed % 6 != 0) ) {
+      for (int16_t i; i < NUM_LEDS * 3; i++) pixels[i] = 0;
+    }
+    
     show();
     strip_refresh += 10;
   }
@@ -281,7 +287,6 @@ void loop() {
   //It's smaller and simpler code this way.
 
   if (millis() > saved_time) {
-
 
     //stop movement when in effect_mode 0, otherwise move in saved direction
     if (effect_mode != 0) forward_direction ? starting_index++ : starting_index--;
@@ -333,6 +338,7 @@ void swap_displayed_colors(void) {
   CRGB * temp = displaycolor1;
   displaycolor1 = displaycolor2;
   displaycolor2 = temp;
+  supressed++;
 }
 
 //linear blend between changes and directly edit the pixel array
